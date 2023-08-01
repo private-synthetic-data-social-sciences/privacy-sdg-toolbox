@@ -1,5 +1,6 @@
 .DS_Store
 .idea
+.vscode
 runs/*
 __pycache__/*
 */__pycache__/*
@@ -13,3 +14,7 @@ docs/source/_autosummary
 examples/multiple_aia
 examples/multiple_mia
 tapas/tests/output/*
+data/*
+examples/reports
+examples/objects
+examples/*.csv
