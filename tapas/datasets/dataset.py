@@ -31,10 +31,9 @@ def _parse_csv(fp, schema, label=None):
     dtypes = {
         i: get_dtype(col["type"], col["representation"]) for i, col in enumerate(schema)
     }
-
     cnames = [col["name"] for col in schema]
-    
-    data = pd.read_csv(fp, header=validate_header(fp, cnames), dtype=dtypes, index_col=None, names=cnames)    
+
+    data = pd.read_csv(fp, header=validate_header(fp, cnames), dtype=dtypes, index_col=None, names=cnames, engine="python")  # https://stackoverflow.com/questions/24761122/pandas-read-csv-ignoring-column-dtypes-when-i-pass-skip-footer-arg  
     
     ## Convert any date or datetime fields to datetime.
     for c in [

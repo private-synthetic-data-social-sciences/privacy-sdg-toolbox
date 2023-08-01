@@ -3,6 +3,7 @@
 import tapas
 import tapas.datasets
 import tapas.threat_models
+import os 
 
 import tqdm
 
@@ -17,15 +18,17 @@ delta = 1e-5
 training_dataset_size = 5000
 
 # TODO: set 100 for ctgan.
-num_trainings = [100, 100, 100]
-num_testings = [100, 100, 100]
+num_trainings = [10]
+num_testings = [10]
 
 
 ## Load the 1% census data.
+# data = tapas.datasets.TabularDataset.read(
+#     "../data/2011 Census Microdata Teaching File", label="Census"
+# )
 data = tapas.datasets.TabularDataset.read(
-    "../data/2011 Census Microdata Teaching File", label="Census"
+    "../data/microdata-2011", label="Census"
 )
-
 ## From the outlier analysis, this seems to be an outlier.
 # Target record: 538738
 # LogLikelihood: -39.92051644253627
@@ -42,8 +45,6 @@ data.drop_records(target_record_indices, in_place=True)
 config = {"epsilon": epsilon, "delta": delta}
 
 generators = [
-    ReprosynGenerator(DS_PRIVBAYES, label="PrivBayes", epsilon=epsilon),
-    ReprosynGenerator(MST, label="MST", **config),
     ReprosynGenerator(CTGAN, label="CTGAN"),
 ]
 
@@ -63,6 +64,9 @@ for generator in generators:
     except Exception as err:
         print(f"Threat model not found for {generator.label}, creating one ({err}).")
         # Create the threat model for targeted AIA.
+        if not os.path.exists("objects/"):
+            print("Creating new objects/ directory.")
+            os.makedirs("objects/")
         threat_model = tapas.threat_models.TargetedAIA(
             # Attacker knowledge on the data: the attack has access to an auxiliary
             # dataset (here, 50% of the total dataset) disjoint from the real
@@ -98,6 +102,9 @@ for generator in generators:
 for generator, ntr, nts in zip(generators, num_trainings, num_testings):
     print("Running", generator.label)
     threat_model = threat_models[generator.label]
+    # breakpoint()
+    # then use generator.fit(data); generator.generate(1) -- this works fine. does _generate_samples do something different?
+        # but it hangs...
     threat_model._generate_samples(num_samples=ntr, training=True)
     threat_model.save()
     threat_model._generate_samples(num_samples=nts, training=False)
@@ -117,31 +124,6 @@ from sklearn.neighbors import KernelDensity
 attacks = [
     # Local-Neighbourhood Attack (with default distance, which is Hamming).
     ClosestDistanceAIA(criterion="accuracy", label="Closest-Distance"),
-    # Inference-on-synthetic attack, with a random forest classifier.
-    SyntheticPredictorAttack(
-        RandomForestClassifier(), criterion="accuracy", label="SyntheticPredictor"
-    ),
-    # Shadow-modelling attacks.
-    # This is vanilla Groundhog from Stadler et al.
-    GroundhogAttack(label="GroundHog"),
-    # Same features, but different classifier.
-    GroundhogAttack(model=LogisticRegression(), label="LogisticGroundhog"),
-    # This is a custom attack, that uses a mixture of queries of different order.
-    ShadowModellingAttack(
-        FeatureBasedSetClassifier(
-            features=RandomTargetedQueryFeature(
-                threat_model.target_record, order=2, number=500
-            )
-            + RandomTargetedQueryFeature(
-                threat_model.target_record, order=3, number=500
-            )
-            + RandomTargetedQueryFeature(
-                threat_model.target_record, order=1, number=20
-            ),
-            classifier=RandomForestClassifier(),
-        ),
-        label=f"RandomQueries",
-    ),
 ]
 
 ## Apply the attacks.
@@ -183,3 +165,9 @@ reports = [
 
 for report in reports:
     report.publish(report_name)
+
+# Comments
+# FPR: N with erroneous 1s in predictions / N with true 0s in labels
+# labels are summaries_per_generator["CTGAN"][0].labels, predictions are [].labels
+# TPR: TP / (TP + FN) = 5 / (5 + 0) = 1
+# N with correct 1s in predictions / N with correct 1s in predictions + N with wrong 0s in predictions
